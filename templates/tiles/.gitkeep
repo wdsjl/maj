@@ -1,0 +1,3 @@
+# 牌面模板目录
+# 运行 `python -m tools.capture_templates` 采集模板
+# 每种牌保存为 {牌名}.png，例如 1m.png, 5p.png, E.png

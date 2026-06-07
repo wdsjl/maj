@@ -1,0 +1,65 @@
+# 雀魂 AI 助手默认配置
+
+window:
+  # 雀魂窗口标题关键词（支持中英文客户端）
+  title_keywords:
+    - "雀魂"
+    - "MahjongSoul"
+    - "Jantama"
+  capture_fps: 5
+
+vision:
+  # 标准游戏画面尺寸（配准后的坐标系）
+  standard_width: 1280
+  standard_height: 720
+  # 模板匹配阈值 (0-1)
+  match_threshold: 0.75
+  # 手牌区域 (相对标准坐标 1280x720)
+  hand:
+    x: 148
+    y: 640
+    width: 891
+    height: 82
+    max_slots: 14
+  # 宝牌指示牌区域
+  dora:
+    x: 52
+    y: 18
+    width: 200
+    height: 60
+  # 四家牌河中心线采样点（用于检测新打出的牌）
+  rivers:
+    self:   { x: 640, y: 520, direction: "up" }
+    right:  { x: 920, y: 360, direction: "left" }
+    across: { x: 640, y: 120, direction: "down" }
+    left:   { x: 360, y: 360, direction: "right" }
+
+mortal:
+  # Mortal 安装目录（包含 mortal/mortal.py）
+  root: ""
+  # 模型权重路径（mortal.pth）
+  model_path: ""
+  # Python 解释器（留空则使用当前 python）
+  python: ""
+  # 玩家座位 0-3（0=自家在下方，按 MJAI 标准）
+  player_id: 0
+  # 是否在 Mortal 不可用时使用简易启发式 bot
+  fallback_bot: true
+
+overlay:
+  enabled: true
+  # 悬浮窗位置
+  x: 100
+  y: 100
+  width: 380
+  opacity: 0.92
+  always_on_top: true
+  show_alternatives: 3
+
+game:
+  # 玩家相对座位：0=下方(自家), 1=右, 2=对, 3=左
+  seat: 0
+
+paths:
+  templates_dir: "templates/tiles"
+  alignment_template: "templates/alignment.png"
