@@ -20,7 +20,10 @@
 
 - **Windows 10/11**（窗口捕捉依赖 Win32 API）
 - Python 3.10+
-- （可选）[Mortal](https://github.com/Equim-chan/Mortal) 及模型权重 `mortal.pth`
+- （推荐）[Mortal](https://github.com/Equim-chan/Mortal) 及模型权重 `mortal.pth`
+
+> **完整部署指南**（Miniconda + Rust/MSYS2 + PyTorch + Mortal + 本项目）：  
+> 见 **[docs/DEPLOY.md](docs/DEPLOY.md)**
 
 ## 快速开始
 
@@ -78,10 +81,27 @@ maj/
 
 1. Win32 截取雀魂窗口
 2. 画面配准到 1280×720 标准坐标
-3. 模板匹配识别手牌
-4. 增量构建 MJAI 事件流
+3. 模板匹配识别手牌、**四家牌河**、**副露**
+4. **MjaiRebuilder** 从完整快照重建 MJAI 事件流（按回合交织牌河，插入副露）
 5. Mortal 子进程返回最优策略
 6. PyQt6 悬浮窗展示建议
+
+### MJAI 重建逻辑
+
+- 从 `GameSnapshot`（手牌 + 牌河 + 副露 + 场况）完整重建事件序列
+- 按 `oya` 起始的回合顺序交织四家牌河中的出牌
+- 在对应玩家首次出牌前插入 chi/pon/kan 事件
+- 轮到自己且手牌 14 张时，末尾追加 `tsumo` 触发 AI 决策
+
+## 调试
+
+```bash
+# 保存标注截图（手牌 + 牌河 + 副露 + MJAI 事件统计）
+python -m tools.test_capture
+
+# 单元测试
+python tests/test_mjai_rebuilder.py
+```
 
 ## 已知限制
 
