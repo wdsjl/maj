@@ -15,7 +15,8 @@ from majsoul_ai.ai.mortal import (
     reaction_to_recommendation,
 )
 from majsoul_ai.config import load_config
-from majsoul_ai.game.state import GameSnapshot, MjaiStateBuilder
+from majsoul_ai.game.snapshot import GameSnapshot
+from majsoul_ai.game.mjai_rebuilder import MjaiStateTracker
 from majsoul_ai.game.tiles import tile_display
 from majsoul_ai.ui.overlay import OverlayController
 
@@ -34,7 +35,10 @@ class MajsoulAiAssistant:
         from majsoul_ai.vision.regions import RegionConfig
         from majsoul_ai.vision.tiles import TileRecognizer
         from majsoul_ai.vision.align import ScreenAligner
+        from majsoul_ai.vision.river import RiverScanner
+        from majsoul_ai.vision.melds import MeldScanner
 
+        self_seat = self.cfg["game"]["seat"]
         self.regions = RegionConfig.from_config(self.cfg["vision"])
         self.recognizer = TileRecognizer(
             self.cfg["paths"]["templates_dir"],
@@ -45,16 +49,18 @@ class MajsoulAiAssistant:
             self.cfg["vision"]["standard_height"],
             self.cfg["paths"].get("alignment_template"),
         )
-        self.state_builder = MjaiStateBuilder(self.cfg["game"]["seat"])
+        self.river_scanner = RiverScanner(self.regions, self.recognizer, self_seat)
+        self.meld_scanner = MeldScanner(self.regions, self.recognizer, self_seat)
+        self.state_tracker = MjaiStateTracker(self_seat)
 
         mortal_cfg = self.cfg["mortal"]
         self.mortal = MortalClient(
             mortal_root=mortal_cfg.get("root", ""),
-            player_id=mortal_cfg.get("player_id", 0),
+            player_id=mortal_cfg.get("player_id", self_seat),
             python_exe=mortal_cfg.get("python") or None,
             model_path=mortal_cfg.get("model_path") or None,
         )
-        self.fallback = FallbackBot(mortal_cfg.get("player_id", 0))
+        self.fallback = FallbackBot(mortal_cfg.get("player_id", self_seat))
         self.use_fallback = mortal_cfg.get("fallback_bot", True)
 
         self._last_recommendation: AiRecommendation | None = None
@@ -96,33 +102,77 @@ class MajsoulAiAssistant:
             self._overlay.post_update(recommendation, status, hand_str)
 
     def _analyze_frame(self, frame_bgr) -> GameSnapshot:
-        """分析单帧，返回游戏快照。"""
-        import cv2
-
+        """分析单帧，返回完整游戏快照。"""
         aligned = self.aligner.transform(frame_bgr)
+        game_cfg = self.cfg["game"]
+
+        # 手牌
         hand_results = self.recognizer.recognize_hand(
             aligned, self.regions.hand, self.regions.max_hand_slots
         )
-
         hand_tiles = [t for t, _c, _i in hand_results if t]
         confidences = [c for _t, c, _i in hand_results if c > 0]
         avg_conf = sum(confidences) / len(confidences) if confidences else 0.0
+        tile_count = len(hand_results)
+        is_my_turn = tile_count >= 14
 
-        # 识别宝牌
-        dora_crop = self.regions.dora.crop(aligned)
+        # 宝牌
         dora_tile = None
+        dora_crop = self.regions.dora.crop(aligned)
         if dora_crop.size > 0:
             dora_tile, _ = self.recognizer.recognize(dora_crop)
 
-        tile_count = len(hand_results)
-        is_my_turn = tile_count >= 14
+        dora_indicators: list[str] = []
+        if self.regions.dora_slots:
+            slot_w = 48
+            for i in range(5):
+                x = self.regions.dora_slots.x + i * slot_w
+                crop = aligned[
+                    self.regions.dora_slots.y: self.regions.dora_slots.y + self.regions.dora_slots.height,
+                    x: x + slot_w,
+                ]
+                if crop.size == 0:
+                    break
+                from majsoul_ai.vision.regions import detect_tile_in_slot
+                if not detect_tile_in_slot(crop, brightness_threshold=50):
+                    break
+                t, _ = self.recognizer.recognize(crop)
+                if t:
+                    dora_indicators.append(t)
+
+        # 牌河
+        rivers = self.river_scanner.scan_all(aligned)
+        river_confs = self.river_scanner.scan_detailed(aligned)
+        river_conf_vals = [
+            rt.confidence
+            for tiles in river_confs.values()
+            for rt in tiles
+            if rt.confidence > 0
+        ]
+        river_avg = sum(river_conf_vals) / len(river_conf_vals) if river_conf_vals else 0.0
+
+        # 副露
+        melds = self.meld_scanner.scan_all(aligned)
+
+        in_kyoku = len(hand_tiles) >= 13 or sum(len(r) for r in rivers.values()) > 0
 
         return GameSnapshot(
             hand=hand_tiles,
             hand_confidence=avg_conf,
-            dora=dora_tile,
+            dora=dora_tile or (dora_indicators[0] if dora_indicators else None),
+            dora_indicators=dora_indicators,
             is_my_turn=is_my_turn,
             tile_count=tile_count,
+            rivers=rivers,
+            river_confidence=river_avg,
+            melds=melds,
+            bakaze=game_cfg.get("bakaze", "E"),
+            kyoku=game_cfg.get("kyoku", 1),
+            honba=game_cfg.get("honba", 0),
+            kyotaku=game_cfg.get("kyotaku", 0),
+            oya=game_cfg.get("oya", 0),
+            scores=game_cfg.get("scores", [25000, 25000, 25000, 25000]),
+            in_kyoku=in_kyoku,
         )
 
     def _query_ai(self, events: list[dict[str, Any]]) -> AiRecommendation | None:
@@ -136,20 +186,17 @@ class MajsoulAiAssistant:
         return None
 
     def run(self) -> None:
-        """主循环。"""
         logging.basicConfig(
             level=logging.INFO,
             format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         )
 
         if self.recognizer.template_count == 0:
-            logger.warning(
-                "未加载任何牌面模板！请先运行: python -m tools.capture_templates"
-            )
+            logger.warning("未加载牌面模板！请先运行: python -m tools.capture_templates")
 
         if not self._init_capture():
             if sys.platform != "win32":
-                logger.info("非 Windows 环境，进入演示模式（无窗口捕捉）")
+                logger.info("非 Windows 环境，进入演示模式")
                 self._demo_mode()
                 return
             sys.exit(1)
@@ -161,8 +208,7 @@ class MajsoulAiAssistant:
         self._running = True
         fps = self.cfg["window"].get("capture_fps", 5)
         interval = 1.0 / fps
-
-        logger.info("开始实时分析 (FPS=%d)", fps)
+        logger.info("开始实时分析 (FPS=%d, 含牌河识别)", fps)
 
         while self._running:
             t0 = time.time()
@@ -174,17 +220,20 @@ class MajsoulAiAssistant:
                 continue
 
             snap = self._analyze_frame(frame)
-            status = f"识别 {snap.tile_count} 张 | 置信度 {snap.hand_confidence:.0%}"
+            status = (
+                f"手牌 {snap.tile_count} | 牌河 {snap.river_summary()} | "
+                f"置信 {snap.hand_confidence:.0%}/{snap.river_confidence:.0%}"
+            )
 
-            if snap.hand:
-                need_ai = self.state_builder.update_from_snapshot(snap)
+            if snap.hand or snap.total_discards > 0:
+                events, need_ai = self.state_tracker.update(snap)
+
                 if need_ai and snap.is_my_turn:
-                    events = self.state_builder.get_events_for_ai()
                     rec = self._query_ai(events)
                     if rec:
                         self._last_recommendation = rec
-                        self.state_builder.apply_ai_reaction(rec.raw)
-                        status = "轮到你出牌"
+                        self.state_tracker.apply_ai_reaction(rec.raw, snap)
+                        status = f"轮到你 | 牌河 {snap.river_summary()}"
                     self._update_overlay(status, self._last_recommendation, snap.hand)
                 else:
                     self._update_overlay(status, self._last_recommendation, snap.hand)
@@ -197,25 +246,31 @@ class MajsoulAiAssistant:
         self.mortal.stop()
 
     def _demo_mode(self) -> None:
-        """Linux/无窗口时的演示。"""
+        """演示模式：含牌河重建的完整 MJAI 示例。"""
+        from majsoul_ai.game.mjai_rebuilder import MjaiRebuilder
+
         self._start_overlay()
-        events = [
-            {"type": "start_game", "names": ["0", "1", "2", "3"], "id": 0},
-            {
-                "type": "start_kyoku",
-                "bakaze": "E", "kyoku": 1, "honba": 0, "kyotaku": 0, "oya": 0,
-                "scores": [25000, 25000, 25000, 25000],
-                "dora_marker": "5s",
-                "tehais": [
-                    ["1m", "2m", "3m", "4p", "5p", "6p", "7s", "8s", "9s", "E", "S", "W", "N"],
-                    ["?"] * 13, ["?"] * 13, ["?"] * 13,
-                ],
+        snap = GameSnapshot(
+            hand=["1m", "2m", "3m", "4p", "5p", "6p", "7s", "8s", "9s", "E", "S", "W", "N", "P"],
+            is_my_turn=True,
+            in_kyoku=True,
+            dora="5s",
+            rivers={
+                0: ["9m", "8p"],
+                1: ["3m", "7s"],
+                2: ["F"],
+                3: ["2s", "6m", "P"],
             },
-            {"type": "tsumo", "actor": 0, "pai": "P"},
-        ]
+            oya=0,
+        )
+        rebuilder = MjaiRebuilder(0)
+        events = rebuilder.rebuild(snap)
+        logger.info("演示 MJAI 事件数: %d", len(events))
         rec = self._query_ai(events)
-        demo_hand = ["1m", "2m", "3m", "4p", "5p", "6p", "7s", "8s", "9s", "E", "S", "W", "N", "P"]
-        self._update_overlay("演示模式", rec, demo_hand)
+        self._update_overlay(
+            f"演示 | 牌河 {snap.river_summary()} | {len(events)} 事件",
+            rec, snap.hand,
+        )
         if self._overlay and self._overlay.app:
             self._overlay.app.exec()
 
@@ -237,7 +292,8 @@ def main() -> None:
         assistant.mortal.mortal_root = __import__("pathlib").Path(args.mortal_root)
     if args.player_id is not None:
         assistant.mortal.player_id = args.player_id
-        assistant.state_builder.player_id = args.player_id
+        assistant.state_tracker.player_id = args.player_id
+        assistant.state_tracker.rebuilder.player_id = args.player_id
 
     try:
         assistant.run()
