@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+
+# 模型与模板（用户自行下载/采集）
+templates/tiles/*.png
+templates/tiles/*.jpg
+templates/alignment.png
+models/
+*.pth
+
+# 调试输出
+debug_capture.png
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db

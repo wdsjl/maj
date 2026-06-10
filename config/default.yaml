@@ -1,0 +1,120 @@
+# 雀魂 AI 助手默认配置
+
+window:
+  title_keywords:
+    - "雀魂"
+    - "MahjongSoul"
+    - "Jantama"
+  capture_fps: 5
+
+vision:
+  standard_width: 1280
+  standard_height: 720
+  match_threshold: 0.75
+  # 手牌区域 (1280x720)
+  hand:
+    x: 148
+    y: 640
+    width: 891
+    height: 82
+    max_slots: 14
+  # 宝牌指示牌（单个主指示牌）
+  dora:
+    x: 52
+    y: 18
+    width: 48
+    height: 56
+  # 宝牌指示条（多张指示牌）
+  dora_slots:
+    x: 52
+    y: 18
+    width: 240
+    height: 56
+  # 四家牌河（1280x720 标准坐标）
+  rivers:
+    self:
+      rect: { x: 395, y: 468, width: 492, height: 96 }
+      orientation: horizontal
+      rows: 2
+      cols: 6
+      tile_width: 42
+      tile_height: 48
+      grow_direction: away
+    across:
+      rect: { x: 395, y: 156, width: 492, height: 96 }
+      orientation: horizontal
+      rows: 2
+      cols: 6
+      tile_width: 42
+      tile_height: 48
+      grow_direction: toward
+    right:
+      rect: { x: 838, y: 210, width: 96, height: 300 }
+      orientation: vertical
+      rows: 6
+      cols: 2
+      tile_width: 48
+      tile_height: 42
+      scan_order: col-major
+    left:
+      rect: { x: 346, y: 210, width: 96, height: 300 }
+      orientation: vertical
+      rows: 6
+      cols: 2
+      tile_width: 48
+      tile_height: 42
+      scan_order: col-major
+  # 四家副露区域
+  melds:
+    self:
+      rect: { x: 260, y: 560, width: 440, height: 56 }
+      max_melds: 4
+      tile_width: 36
+      tile_height: 48
+    across:
+      rect: { x: 580, y: 100, width: 440, height: 56 }
+      max_melds: 4
+      tile_width: 36
+      tile_height: 48
+    right:
+      rect: { x: 940, y: 210, width: 56, height: 300 }
+      max_melds: 4
+      tile_width: 36
+      tile_height: 48
+    left:
+      rect: { x: 284, y: 210, width: 56, height: 300 }
+      max_melds: 4
+      tile_width: 36
+      tile_height: 48
+
+mortal:
+  root: ""
+  model_path: ""
+  python: ""
+  player_id: 0
+  fallback_bot: true
+
+overlay:
+  enabled: true
+  x: 100
+  y: 100
+  width: 380
+  opacity: 0.92
+  always_on_top: true
+  show_alternatives: 3
+  # 牌面识别监视窗（运行时对照检查）
+  show_recognition_panel: true
+  recognition_x: 500
+  recognition_y: 80
+  recognition_width: 420
+  recognition_height: 500
+
+game:
+  seat: 0
+  oya: 0
+  bakaze: "E"
+  kyoku: 1
+
+paths:
+  templates_dir: "templates/tiles"
+  alignment_template: "templates/alignment.png"
