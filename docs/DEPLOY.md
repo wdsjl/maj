@@ -1,6 +1,31 @@
 # 雀魂 AI 助手 · Windows 完整部署指南
 
-本文档从零开始，在 **Windows 10/11** 上部署整套环境：
+## 快速通道：一键安装（仅雀魂助手部分）
+
+若只需安装**窗口捕捉 + 识别 + 悬浮窗**（Mortal 稍后配置）：
+
+```powershell
+# 在项目目录下
+installer\install.bat
+```
+
+或：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File installer\install.ps1
+```
+
+安装后双击 **「启动雀魂AI.bat」**，菜单中选择：
+1. 采集牌面模板
+2. 启动 AI 助手
+
+详见 [installer/README.md](../installer/README.md)。
+
+---
+
+## 完整手动部署
+
+本文档从零开始，在 **Windows 10/11** 上部署整套环境（含 Mortal）：
 
 ```
 Miniconda → Rust (MSYS2) → PyTorch → Mortal → 本项目 → 牌面模板 → 运行

@@ -25,7 +25,20 @@
 > **完整部署指南**（Miniconda + Rust/MSYS2 + PyTorch + Mortal + 本项目）：  
 > 见 **[docs/DEPLOY.md](docs/DEPLOY.md)**
 
-## 快速开始
+## 一键安装（Windows 推荐）
+
+双击 **`installer\install.bat`**，或：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File installer\install.ps1
+```
+
+自动完成：复制文件 → 创建 venv → 安装依赖 → 桌面快捷方式 → 启动菜单。  
+详见 **[installer/README.md](installer/README.md)**。
+
+> Mortal AI 与牌面模板仍需按向导单独配置。
+
+## 快速开始（手动）
 
 ### 1. 安装依赖
 
