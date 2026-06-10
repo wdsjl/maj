@@ -102,6 +102,12 @@ overlay:
   opacity: 0.92
   always_on_top: true
   show_alternatives: 3
+  # 牌面识别监视窗（运行时对照检查）
+  show_recognition_panel: true
+  recognition_x: 500
+  recognition_y: 80
+  recognition_width: 420
+  recognition_height: 500
 
 game:
   seat: 0

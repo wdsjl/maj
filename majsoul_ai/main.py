@@ -17,7 +17,9 @@ from majsoul_ai.ai.mortal import (
 from majsoul_ai.config import load_config
 from majsoul_ai.game.snapshot import GameSnapshot
 from majsoul_ai.game.mjai_rebuilder import MjaiStateTracker
-from majsoul_ai.game.tiles import tile_display
+from majsoul_ai.game.tiles import AKA_DORA, ALL_TILES, tile_display
+
+TEMPLATE_TOTAL = len(ALL_TILES) + len(AKA_DORA)
 from majsoul_ai.ui.overlay import OverlayController
 
 logger = logging.getLogger(__name__)
@@ -96,10 +98,16 @@ class MajsoulAiAssistant:
         status: str,
         recommendation: AiRecommendation | None = None,
         hand: list[str] | None = None,
+        snap: GameSnapshot | None = None,
     ) -> None:
         if self._overlay:
             hand_str = " ".join(tile_display(t) for t in (hand or []))
             self._overlay.post_update(recommendation, status, hand_str)
+            self._overlay.post_state(
+                snap,
+                self.recognizer.template_count,
+                TEMPLATE_TOTAL,
+            )
 
     def _analyze_frame(self, frame_bgr) -> GameSnapshot:
         """分析单帧，返回完整游戏快照。"""
@@ -191,8 +199,11 @@ class MajsoulAiAssistant:
             format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         )
 
-        if self.recognizer.template_count == 0:
-            logger.warning("未加载牌面模板！请先运行: python -m tools.capture_templates")
+        if self.recognizer.template_count < TEMPLATE_TOTAL:
+            logger.warning(
+                "牌面模板 %d/%d，建议运行: python -m tools.capture_templates",
+                self.recognizer.template_count, TEMPLATE_TOTAL,
+            )
 
         if not self._init_capture():
             if sys.platform != "win32":
@@ -215,7 +226,7 @@ class MajsoulAiAssistant:
 
             frame = self._capture.capture()
             if frame is None:
-                self._update_overlay("未找到雀魂窗口")
+                self._update_overlay("未找到雀魂窗口", None, [], None)
                 time.sleep(1.0)
                 continue
 
@@ -234,11 +245,11 @@ class MajsoulAiAssistant:
                         self._last_recommendation = rec
                         self.state_tracker.apply_ai_reaction(rec.raw, snap)
                         status = f"轮到你 | 牌河 {snap.river_summary()}"
-                    self._update_overlay(status, self._last_recommendation, snap.hand)
+                    self._update_overlay(status, self._last_recommendation, snap.hand, snap)
                 else:
-                    self._update_overlay(status, self._last_recommendation, snap.hand)
+                    self._update_overlay(status, self._last_recommendation, snap.hand, snap)
             else:
-                self._update_overlay("识别中...", None, [])
+                self._update_overlay("识别中...", None, [], snap)
 
             elapsed = time.time() - t0
             time.sleep(max(0, interval - elapsed))
@@ -267,9 +278,10 @@ class MajsoulAiAssistant:
         events = rebuilder.rebuild(snap)
         logger.info("演示 MJAI 事件数: %d", len(events))
         rec = self._query_ai(events)
+        self._overlay.post_state(snap, 0, TEMPLATE_TOTAL)
         self._update_overlay(
             f"演示 | 牌河 {snap.river_summary()} | {len(events)} 事件",
-            rec, snap.hand,
+            rec, snap.hand, snap,
         )
         if self._overlay and self._overlay.app:
             self._overlay.app.exec()

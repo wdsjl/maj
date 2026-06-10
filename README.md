@@ -47,15 +47,24 @@ mortal:
   fallback_bot: true
 ```
 
-### 3. 采集牌面模板
+### 3. 采集牌面模板（图形化）
 
 ```bash
 python -m tools.capture_templates
 ```
 
-按提示输入牌名（如 `1m`、`5p`、`E`）和槽位索引，将模板保存到 `templates/tiles/`。
+打开图形窗口：左侧显示 37 种牌的采集进度（绿色=已采集），右侧实时显示手牌槽位。  
+操作：① 点击缺失的牌名 ② 点击对应手牌槽位完成采集。
 
-### 4. 启动 AI 助手
+### 4. 运行时牌面监视
+
+启动 `python -m majsoul_ai` 后会同时出现两个悬浮窗：
+- **AI 建议窗**：推荐出牌
+- **牌面监视窗**：实时显示手牌、牌河、副露、宝牌，便于与游戏画面对照
+
+可在 `config/default.yaml` 的 `overlay.show_recognition_panel` 关闭监视窗。
+
+### 5. 启动 AI 助手
 
 ```bash
 python -m majsoul_ai

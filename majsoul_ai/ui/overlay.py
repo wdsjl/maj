@@ -15,12 +15,16 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
 )
 
+from majsoul_ai.ui.recognition_panel import RecognitionPanelController
+
 if TYPE_CHECKING:
     from majsoul_ai.ai.mortal import AiRecommendation
+    from majsoul_ai.game.snapshot import GameSnapshot
 
 
 class OverlaySignals(QObject):
     update = pyqtSignal(object, str, list)  # recommendation, status, hand
+    update_state = pyqtSignal(object, int, int)  # snapshot, template_count, template_total
     clear = pyqtSignal()
 
 
@@ -151,6 +155,7 @@ class OverlayController:
         self.cfg = overlay_cfg
         self.app: QApplication | None = None
         self.window: OverlayWindow | None = None
+        self.recognition: RecognitionPanelController | None = None
         self.signals = OverlaySignals()
 
     def run(self) -> None:
@@ -161,7 +166,11 @@ class OverlayController:
             width=self.cfg.get("width", 380),
             opacity=self.cfg.get("opacity", 0.92),
         )
+        self.recognition = RecognitionPanelController(self.cfg)
+        self.recognition.attach(self.app)
+
         self.signals.update.connect(self._on_update)
+        self.signals.update_state.connect(self._on_update_state)
         self.signals.clear.connect(self._on_clear)
         self.window.show()
         self.app.exec()
@@ -170,12 +179,26 @@ class OverlayController:
         if self.window:
             self.window.show_recommendation(recommendation, status, hand)
 
+    def _on_update_state(self, snap, template_count, template_total):
+        if self.recognition:
+            self.recognition._on_update(snap, template_count, template_total)
+
     def _on_clear(self):
         if self.window:
             self.window.clear()
+        if self.recognition:
+            self.recognition.post_clear()
 
     def post_update(self, recommendation, status: str = "", hand_display: str = "") -> None:
         self.signals.update.emit(recommendation, status, hand_display)
+
+    def post_state(
+        self,
+        snap: "GameSnapshot | None",
+        template_count: int = 0,
+        template_total: int = 37,
+    ) -> None:
+        self.signals.update_state.emit(snap, template_count, template_total)
 
     def post_clear(self) -> None:
         self.signals.clear.emit()
